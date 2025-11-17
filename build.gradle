@@ -14,10 +14,6 @@ java {
 	}
 }
 
-// ext {
-//   set('springAiVersion', "1.0.3")
-// }
-
 configurations {
 	compileOnly {
 		extendsFrom annotationProcessor
@@ -50,12 +46,6 @@ dependencies {
 	implementation 'org.springframework.boot:spring-boot-starter-cache'
 	implementation 'com.github.ben-manes.caffeine:caffeine:3.1.8'
 }
-
-// dependencyManagement {
-//   imports {
-//     mavenBom "org.springframework.ai:spring-ai-bom:${springAiVersion}"
-//   }
-// }
 
 tasks.named('test') {
 	useJUnitPlatform()
