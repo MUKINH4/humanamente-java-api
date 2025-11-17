@@ -12,11 +12,17 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 
 import com.humanamente.api.model.User;
 import com.humanamente.api.service.UserService;
 import com.humanamente.api.dto.ApiResponse;
+import com.humanamente.api.dto.UserEdit;
 import com.humanamente.api.service.MessageService;
+import com.humanamente.api.dto.ChangePasswordRequest;
+import com.humanamente.api.dto.TokenDTO;
+import com.humanamente.api.service.TokenService;
+import com.humanamente.api.dto.UserUpdateResponse;
 
 import jakarta.validation.Valid;
 
@@ -26,10 +32,12 @@ public class UserController {
     
     private final UserService userService;
     private final MessageService messageService;
+    private final TokenService tokenService;
 
-    public UserController(UserService userService, MessageService messageService) {
+    public UserController(UserService userService, MessageService messageService, TokenService tokenService) {
         this.userService = userService;
         this.messageService = messageService;
+        this.tokenService = tokenService;
     }
 
     @PostMapping
@@ -58,14 +66,52 @@ public class UserController {
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<User> update(@PathVariable String id, @RequestBody @Valid User user) {
-        User updated = userService.update(id, user);
-        return ResponseEntity.ok(updated);
+    public ResponseEntity<ApiResponse<UserUpdateResponse>> update(
+            @PathVariable String id, 
+            @RequestBody @Valid UserEdit userEdit,
+            @AuthenticationPrincipal User authenticatedUser) {
+        
+        // Guarda o email antigo antes de atualizar
+        User oldUser = userService.findById(id);
+        String oldEmail = oldUser.getEmail();
+        
+        // Atualiza o usuário
+        User updated = userService.update(id, userEdit);
+        
+        // Verifica se o email foi alterado
+        boolean emailChanged = !oldEmail.equals(updated.getEmail());
+        
+        // Gera novo token apenas se o email foi alterado
+        TokenDTO newToken = emailChanged ? tokenService.createToken(updated) : null;
+        
+        UserUpdateResponse response = new UserUpdateResponse(updated, newToken);
+        
+        String message = emailChanged 
+            ? messageService.getMessage("success.user.updated.with.token")
+            : messageService.getMessage("success.user.updated");
+        
+        return ResponseEntity.ok(new ApiResponse<>(message, response));
     }
 
     @DeleteMapping("/{id}")
     public ResponseEntity<ApiResponse<Void>> delete(@PathVariable String id) {
         userService.delete(id);
         return ResponseEntity.ok(new ApiResponse<>(messageService.getMessage("success.user.deleted"), null));
+    }
+
+    @PostMapping("/change-password")
+    public ResponseEntity<ApiResponse<TokenDTO>> changePassword(
+            @RequestBody @Valid ChangePasswordRequest request,
+            @AuthenticationPrincipal User authenticatedUser) {
+        
+        userService.changePassword(authenticatedUser.getId(), request);
+        
+        // Gera novo token após mudança de senha
+        TokenDTO newToken = tokenService.createToken(authenticatedUser);
+        
+        return ResponseEntity.ok(new ApiResponse<>(
+            messageService.getMessage("success.password.changed"), 
+            newToken
+        ));
     }
 }

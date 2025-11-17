@@ -11,10 +11,15 @@ import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
+import com.humanamente.api.dto.ChangePasswordRequest;
+import com.humanamente.api.dto.UserEdit;
 import com.humanamente.api.model.User;
 import com.humanamente.api.repository.UserRepository;
 
+import lombok.extern.slf4j.Slf4j;
+
 @Service
+@Slf4j
 public class UserService implements UserDetailsService {
 
     private final UserRepository repository;
@@ -29,11 +34,13 @@ public class UserService implements UserDetailsService {
 
     @Override
     public UserDetails loadUserByUsername(String usernameOrEmail) throws UsernameNotFoundException {
+        log.info("Carregando usuário: {}", usernameOrEmail);
         return repository.findByUsername(usernameOrEmail)
             .or(() -> repository.findByEmail(usernameOrEmail))
-            .orElseThrow(() -> new UsernameNotFoundException(messageService.getMessage("error.user.not.found.username.or.email", usernameOrEmail)));
+            .orElseThrow(() -> new UsernameNotFoundException("User not found"));
     }
 
+    @CacheEvict(value = "users", allEntries = true)
     public User create(User user) {
         user.setPassword(passwordEncoder.encode(user.getPassword()));
         return repository.save(user);
@@ -57,14 +64,42 @@ public class UserService implements UserDetailsService {
     }
 
     @CacheEvict(value = "users", allEntries = true)
-    public User update(String id, User user) {
+    public User update(String id, UserEdit userEdit) {
         User existing = findById(id);
-        existing.setUsername(user.getUsername());
-        existing.setEmail(user.getEmail());
-        if (user.getPassword() != null && !user.getPassword().isEmpty()) {
-            existing.setPassword(passwordEncoder.encode(user.getPassword()));
+        
+        // Verifica se o email foi alterado
+        boolean emailChanged = !existing.getEmail().equals(userEdit.email());
+        
+        existing.setUsername(userEdit.username());
+        existing.setEmail(userEdit.email());
+        
+        User updated = repository.save(existing);
+        
+        if (emailChanged) {
+            log.info("Email alterado para usuário: {} - Novo token será gerado", updated.getId());
         }
-        return repository.save(existing);
+        
+        return updated;
+    }
+    
+    public boolean wasEmailChanged(User oldUser, User newUser) {
+        return !oldUser.getEmail().equals(newUser.getEmail());
+    }
+
+    @CacheEvict(value = "users", allEntries = true)
+    public void changePassword(String userId, ChangePasswordRequest request) {
+        User user = findById(userId);
+        
+        // Verifica se a senha atual está correta
+        if (!passwordEncoder.matches(request.currentPassword(), user.getPassword())) {
+            throw new RuntimeException(messageService.getMessage("error.password.incorrect"));
+        }
+        
+        // Atualiza para a nova senha
+        user.setPassword(passwordEncoder.encode(request.newPassword()));
+        repository.save(user);
+        
+        log.info("Senha alterada para usuário: {}", user.getEmail());
     }
 
     @CacheEvict(value = "users", allEntries = true)
