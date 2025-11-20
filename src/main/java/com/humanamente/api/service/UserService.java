@@ -106,4 +106,11 @@ public class UserService implements UserDetailsService {
     public void delete(String id) {
         repository.deleteById(id);
     }
+
+    public void validateEmailUniqueness(
+            String email) {
+        if (repository.existsByEmail(email)) {
+            throw new IllegalArgumentException(messageService.getMessage("error.user.email.exists", email));
+        }
+    }
 }

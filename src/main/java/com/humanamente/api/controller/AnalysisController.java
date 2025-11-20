@@ -40,6 +40,9 @@ public class AnalysisController {
     @GetMapping("/{id}")
     public ResponseEntity<Analysis> findById(@PathVariable Long id) {
         Analysis analysis = analysisService.findById(id);
+        if (analysis == null) {
+            return ResponseEntity.notFound().build();
+        };
         return ResponseEntity.ok(analysis);
     }
 
@@ -54,17 +57,29 @@ public class AnalysisController {
     @GetMapping("/user/{userId}")
     public ResponseEntity<List<Analysis>> findByUserId(@PathVariable String userId) {
         List<Analysis> analyses = analysisService.findByUserIdOrderByDate(userId);
+        if (analyses == null || analyses.isEmpty()) {
+            return ResponseEntity.notFound().build();
+        }
         return ResponseEntity.ok(analyses);
     }
 
     @PutMapping("/{id}")
     public ResponseEntity<Analysis> update(@PathVariable Long id, @RequestBody @Valid Analysis analysis) {
+        if (!id.equals(analysis.getId())) {
+            return ResponseEntity.badRequest().build();
+        }
         Analysis updated = analysisService.update(id, analysis);
+        if (updated == null) {
+            return ResponseEntity.notFound().build();
+        }
         return ResponseEntity.ok(updated);
     }
 
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> delete(@PathVariable Long id) {
+        if (analysisService.findById(id) == null) {
+            return ResponseEntity.notFound().build();
+        }
         analysisService.delete(id);
         return ResponseEntity.noContent().build();
     }

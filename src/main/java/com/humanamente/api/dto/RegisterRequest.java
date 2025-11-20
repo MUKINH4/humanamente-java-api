@@ -9,21 +9,21 @@ import jakarta.validation.constraints.NotBlank;
 import com.humanamente.api.model.enums.UserRoles;
 
 public record RegisterRequest(
-    @NotBlank(message = "Username cannot be null")
+    @NotBlank(message = "{NotBlank.user.username}")
     String username,
-    @NotBlank(message = "Email cannot be null")
-    @Email(message = "Please provide a valid email")
+    @NotBlank(message = "{NotBlank.user.email}")
+    @Email(message = "{Email.user.email}")
     @Column(unique = true)
     String email,
-    @NotBlank(message = "Password cannot be null")
+    @NotBlank(message = "{NotBlank.user.password}")
     String password,
-    @NotBlank(message = "Confirm Password cannot be null")
+    @NotBlank(message = "{NotBlank.user.confirmPassword}")
     String confirmPassword,
 
     @Enumerated(EnumType.STRING)
     UserRoles role
 ) {
-    @AssertTrue(message = "Password do not match")
+    @AssertTrue(message = "{Validation.password.mismatch}")
     public boolean isPasswordMatching() {
         if (password == null || confirmPassword == null) return false;
         return password.equals(confirmPassword);

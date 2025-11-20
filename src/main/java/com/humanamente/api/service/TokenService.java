@@ -1,7 +1,8 @@
 package com.humanamente.api.service;
 
 import java.time.Instant;
-import java.time.temporal.ChronoUnit;
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -25,19 +26,18 @@ public class TokenService {
     private Long expirationTime;
 
     public TokenDTO createToken(User user) {
-        Instant now = Instant.now();
-        Instant expiration = now.plus(expirationTime, ChronoUnit.SECONDS);
+        Instant expirationAt = LocalDateTime.now().plusMinutes(60).toInstant(ZoneOffset.ofHours(-3));
         
         String token = JWT.create()
             .withIssuer("Humanamente API")
             .withSubject(user.getEmail())
             .withClaim("id", user.getId())
             .withClaim("role", user.getRole().name())
-            .withIssuedAt(now)
-            .withExpiresAt(expiration)
+            .withIssuedAt(Instant.now())
+            .withExpiresAt(expirationAt)
             .sign(Algorithm.HMAC256(secret));
         
-        log.info("Novo token gerado para usuário: {} com expiração em: {}", user.getEmail(), expiration);
+        log.info("Novo token gerado para usuário: {} com expiração em: {}", user.getEmail(), expirationAt);
         
         return new TokenDTO(token, user.getUsername());
     }

@@ -9,4 +9,5 @@ import com.humanamente.api.model.User;
 public interface UserRepository extends JpaRepository<User, String> {
     Optional<User> findByUsername(String username);
     Optional<User> findByEmail(String email);
+    boolean existsByEmail(String email);
 }

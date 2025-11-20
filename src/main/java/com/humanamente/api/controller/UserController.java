@@ -42,27 +42,60 @@ public class UserController {
 
     @PostMapping
     public ResponseEntity<ApiResponse<User>> create(@RequestBody @Valid User user) {
-        User created = userService.create(user);
-        return ResponseEntity.status(HttpStatus.CREATED)
-            .body(new ApiResponse<>(messageService.getMessage("success.user.created"), created));
+        try {
+            User created = userService.create(user);
+            return ResponseEntity.status(HttpStatus.CREATED)
+                .body(new ApiResponse<>(messageService.getMessage("success.user.created"), created));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(new ApiResponse<>(e.getMessage(), null));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(new ApiResponse<>(messageService.getMessage("error.internal"), null));
+        }
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<User> findById(@PathVariable String id) {
-        User user = userService.findById(id);
-        return ResponseEntity.ok(user);
+    public ResponseEntity<ApiResponse<User>> findById(@PathVariable String id) {
+        try {
+            User user = userService.findById(id);
+            
+            if (user == null) {
+                return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(new ApiResponse<>(messageService.getMessage("error.user.not.found"), null));
+            }
+
+            return ResponseEntity.ok(new ApiResponse<>(messageService.getMessage("success.user.found"), user));
+
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(new ApiResponse<>(messageService.getMessage("error.internal"), null));
+        }
     }
 
     @GetMapping
-    public ResponseEntity<List<User>> findAll() {
-        List<User> users = userService.findAll();
-        return ResponseEntity.ok(users);
+    public ResponseEntity<ApiResponse<List<User>>> findAll() {
+        try {
+            List<User> users = userService.findAll();
+            return ResponseEntity.ok(new ApiResponse<>(messageService.getMessage("success.users.found"), users));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(new ApiResponse<>(messageService.getMessage("error.internal"), null));
+        }
     }
 
     @GetMapping("/email/{email}")
-    public ResponseEntity<User> findByEmail(@PathVariable String email) {
-        User user = userService.findByEmail(email);
-        return ResponseEntity.ok(user);
+    public ResponseEntity<ApiResponse<User>> findByEmail(@PathVariable String email) {
+        try {
+            User user = userService.findByEmail(email);
+            return ResponseEntity.ok(new ApiResponse<>(messageService.getMessage("success.user.found"), user));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .body(new ApiResponse<>(e.getMessage(), null));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(new ApiResponse<>(messageService.getMessage("error.internal"), null));
+        }
     }
 
     @PutMapping("/{id}")
@@ -70,48 +103,76 @@ public class UserController {
             @PathVariable String id, 
             @RequestBody @Valid UserEdit userEdit,
             @AuthenticationPrincipal User authenticatedUser) {
-        
-        // Guarda o email antigo antes de atualizar
-        User oldUser = userService.findById(id);
-        String oldEmail = oldUser.getEmail();
-        
-        // Atualiza o usuário
-        User updated = userService.update(id, userEdit);
-        
-        // Verifica se o email foi alterado
-        boolean emailChanged = !oldEmail.equals(updated.getEmail());
-        
-        // Gera novo token apenas se o email foi alterado
-        TokenDTO newToken = emailChanged ? tokenService.createToken(updated) : null;
-        
-        UserUpdateResponse response = new UserUpdateResponse(updated, newToken);
-        
-        String message = emailChanged 
-            ? messageService.getMessage("success.user.updated.with.token")
-            : messageService.getMessage("success.user.updated");
-        
-        return ResponseEntity.ok(new ApiResponse<>(message, response));
+        try {
+            User oldUser = userService.findById(id);
+
+            if (oldUser == null) {
+                return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(new ApiResponse<>(messageService.getMessage("error.user.not.found"), null));
+            }
+
+            String oldEmail = oldUser.getEmail();
+
+            if (!authenticatedUser.getId().equals(id)) {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(new ApiResponse<>(messageService.getMessage("error.user.unauthorized"), null));
+            }
+            
+            User updated = userService.update(id, userEdit);
+            
+            boolean emailChanged = !oldEmail.equals(updated.getEmail());
+            
+            TokenDTO newToken = emailChanged ? tokenService.createToken(updated) : null;
+            
+            UserUpdateResponse response = new UserUpdateResponse(updated, newToken);
+            
+            String message = emailChanged 
+                ? messageService.getMessage("success.user.updated.with.token")
+                : messageService.getMessage("success.user.updated");
+            
+            return ResponseEntity.ok(new ApiResponse<>(message, response));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .body(new ApiResponse<>(e.getMessage(), null));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(new ApiResponse<>(messageService.getMessage("error.internal"), null));
+        }
     }
 
     @DeleteMapping("/{id}")
     public ResponseEntity<ApiResponse<Void>> delete(@PathVariable String id) {
-        userService.delete(id);
-        return ResponseEntity.ok(new ApiResponse<>(messageService.getMessage("success.user.deleted"), null));
+        try {
+            userService.delete(id);
+            return ResponseEntity.ok(new ApiResponse<>(messageService.getMessage("success.user.deleted"), null));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .body(new ApiResponse<>(e.getMessage(), null));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(new ApiResponse<>(messageService.getMessage("error.internal"), null));
+        }
     }
 
     @PostMapping("/change-password")
     public ResponseEntity<ApiResponse<TokenDTO>> changePassword(
             @RequestBody @Valid ChangePasswordRequest request,
             @AuthenticationPrincipal User authenticatedUser) {
-        
-        userService.changePassword(authenticatedUser.getId(), request);
-        
-        // Gera novo token após mudança de senha
-        TokenDTO newToken = tokenService.createToken(authenticatedUser);
-        
-        return ResponseEntity.ok(new ApiResponse<>(
-            messageService.getMessage("success.password.changed"), 
-            newToken
-        ));
+        try {
+            userService.changePassword(authenticatedUser.getId(), request);
+            
+            TokenDTO newToken = tokenService.createToken(authenticatedUser);
+            
+            return ResponseEntity.ok(new ApiResponse<>(
+                messageService.getMessage("success.password.changed"), 
+                newToken
+            ));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(new ApiResponse<>(e.getMessage(), null));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(new ApiResponse<>(messageService.getMessage("error.internal"), null));
+        }
     }
 }
